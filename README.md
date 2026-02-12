@@ -2,14 +2,16 @@
 Simple MCP client and server implementation.
 
 ### Usage
-1. Run the custom MCP server.
+
+1. Create "secrets.env". You can insert API keys for running servers here.
 ```
-python3 custom_server.py
+touch ./secrets.env
 ```
 
-2. Run the brave-search MCP server.
+
+2. Run MCP servers. This will run all MCP servers defined in "mcp_servers" directory.
 ```
-npx -y @brave/brave-search-mcp-server --transport http --brave-api-key BRAVE_API_KEY
+python3 run_mcp_servers.py
 ```
 
 3. Run the MCP client.
