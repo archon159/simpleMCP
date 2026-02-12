@@ -11,8 +11,8 @@ from pathlib import Path
 from utils.logger import create_logger
 
 MCP_URLS = {
-    "custom": "http://localhost:8000/mcp",
-    "brave_search": "http://0.0.0.0:8080/mcp",
+    "custom": "http://localhost:8001/mcp",
+    "brave_search": "http://localhost:8002/mcp",
 }
 
 TOOL_ALLOWLIST = {
