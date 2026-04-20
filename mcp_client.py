@@ -1,7 +1,10 @@
 import asyncio
 
+from dotenv import load_dotenv
+load_dotenv("./secrets.env")
+
 from utils.config import LLMConfig, McpConfig
-from utils.hf_model import load_hf_model
+from utils.backend import create_backend
 from utils.mcp_http import MultiMcp
 from utils.misc import apply_allowlist, to_llm_tools
 from utils.agent_loop import run_agent
@@ -44,10 +47,11 @@ async def build_tools(mcp: MultiMcp, mcp_cfg: McpConfig):
 def parse_arguments(return_default: bool = False):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--device', type=str, default='cuda:0', help="Device to run")
+    parser.add_argument('--device', type=str, default='cuda:0', help="Device to run (HuggingFace only)")
+    parser.add_argument('--dtype', type=str, default='auto', help="Model dtype (HuggingFace only)")
     parser.add_argument('--seed', type=int, default=0, help='Random seed')
     parser.add_argument('--temperature', type=float, default=0.0, help='Temperature')
-    parser.add_argument('--model', type=str, default='Llama-3.1-8B-Instruct', help='Model')
+    parser.add_argument('--model', type=str, default='Llama-3.1-8B-Instruct', help='Model name (HuggingFace local) or API model ID (e.g. gpt-4o, claude-3-5-sonnet-20241022)')
 
     parser.add_argument(
         '--system_message',
@@ -55,7 +59,7 @@ def parse_arguments(return_default: bool = False):
         default='',
         help='Additional system message beyond tool calling.',
     )
-    
+
     parser.add_argument(
         '-m', '--user_message',
         type=str,
@@ -69,11 +73,10 @@ def parse_arguments(return_default: bool = False):
 
 async def main():
     logger = create_logger()
-    
+
     args = parse_arguments()
-    
+
     llm_cfg = LLMConfig(
-        model_id=MODEL_DIR / args.model,
         temperature=args.temperature,
         max_new_tokens=256,
         max_tool_rounds=6,
@@ -84,19 +87,24 @@ async def main():
         allowlist=TOOL_ALLOWLIST,
         prefix_tools=True,
     )
-    
+
     logger.info(f'[User Question] {args.user_message}')
 
-    logger.info('Loading LLM...\n')
-    hf = load_hf_model(llm_cfg.model_id, dtype="auto", device=args.device)
+    backend = create_backend(
+        args.model,
+        model_dir=MODEL_DIR,
+        device=args.device,
+        dtype=args.dtype,
+        logger=logger,
+    )
 
     async with MultiMcp(mcp_cfg.url_map, mcp_cfg.enabled) as mcp:
         llm_tools = await build_tools(mcp, mcp_cfg)
-        
+
         logger.info(f'Available Tools:\n{llm_tools}\n')
-        
+
         answer = await run_agent(
-            hf=hf,
+            backend=backend,
             mcp=mcp,
             llm_tools=llm_tools,
             system_message=args.system_message,
