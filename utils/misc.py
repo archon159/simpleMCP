@@ -65,16 +65,21 @@ def parse_output(raw: str) -> tuple[str, str | None, dict | None]:
       ("call", tool_name, tool_args)  if tool-call JSON found
       ("final", answer_text, None)    otherwise
     """
+    text = raw.strip()
+    # Llama 3.1 native tool call prefix
+    if text.startswith("<|python_tag|>"):
+        text = text[len("<|python_tag|>"):].strip()
+
     try:
-        obj = extract_first_json(raw)
+        obj = extract_first_json(text)
         tc = parse_tool_call(obj)
         if tc is not None:
             name, params = tc
             return ("call", name, params)
     except Exception:
-        if "{" in raw:
-            print("Isn\'t this JSON?")  
-            
+        if "{" in text:
+            print("Isn't this JSON?")
+
     return ("final", raw.strip(), None)
 
 

@@ -35,6 +35,7 @@ def generate_from_messages(
     hf,
     messages,
     *,
+    tools=None,
     max_new_tokens: int,
     temperature: float,
     seed: int = 0,
@@ -45,6 +46,7 @@ def generate_from_messages(
 
     prompt = hf.tokenizer.apply_chat_template(
         messages,
+        tools=tools,
         tokenize=False,
         add_generation_prompt=True,
     )
