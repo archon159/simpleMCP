@@ -10,6 +10,8 @@ SERVERS_PACKAGE = "mcp_servers"
 PORTS = {
     "custom": 8001,
     "brave_search": 8002,
+    "perplexity_search": 8003,
+    "google_search": 8004,
 }
 
 PARENT_PID = None

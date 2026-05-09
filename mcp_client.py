@@ -17,6 +17,8 @@ from utils.logger import create_logger
 MCP_URLS = {
     "custom": "http://localhost:8001/mcp",
     "brave_search": "http://localhost:8002/mcp",
+    "perplexity_search": "http://localhost:8003/mcp",
+    "google_search": "http://localhost:8004/mcp",
 }
 
 TOOL_ALLOWLIST = {
@@ -26,7 +28,16 @@ TOOL_ALLOWLIST = {
     "brave_search": {
         "brave_web_search"
     },
+    "perplexity_search": {
+        "perplexity_search"
+    },
+    "google_search": {
+        "google_search"
+    },
 }
+
+# Default servers to enable. Override at runtime with --enabled custom,brave_search,...
+ENABLED_SERVERS = ["custom"]
 
 MODEL_DIR = Path(os.environ.get("MODEL_DIR", "../hf_models/"))
 
@@ -56,6 +67,10 @@ def parse_arguments(return_default: bool = False):
     parser.add_argument('--max_tool_rounds', type=int, default=6, help='Maximum number of LLM rounds (each round may invoke one tool or produce the final answer).')
     parser.add_argument('--writing_mode', action='store_true', help='HuggingFace only: also log the model output with special tokens kept (e.g. <|python_tag|>) for inspection. Agent behavior is unchanged.')
     parser.add_argument('--enable_thinking', action='store_true', help='HuggingFace only: pass enable_thinking=True to apply_chat_template (e.g. Qwen3 thinking mode). Default False.')
+    parser.add_argument('--openai_api', type=str, choices=['chat_completions', 'responses', 'responses_url'], default='chat_completions', help='Which OpenAI API mode to use (only for OpenAI models). responses_url: OpenAI server connects to the MCP server directly via --mcp_url. Default: chat_completions.')
+    parser.add_argument('--mcp_url', type=str, default=None, help='Public URL of the MCP server (required for --openai_api=responses_url).')
+    parser.add_argument('--mcp_label', type=str, default='custom', help='server_label exposed to OpenAI in responses_url mode.')
+    parser.add_argument('--enabled', type=str, default=None, help=f'Comma-separated list of MCP servers to enable. Default: {",".join(ENABLED_SERVERS)}.')
 
     parser.add_argument(
         '--system_message',
@@ -85,13 +100,6 @@ async def main():
         max_new_tokens=256,
         max_tool_rounds=args.max_tool_rounds,
     )
-    mcp_cfg = McpConfig(
-        url_map=MCP_URLS,
-        # enabled=["custom", "brave_search"],
-        enabled=['custom'],
-        allowlist=TOOL_ALLOWLIST,
-        prefix_tools=True,
-    )
 
     logger.info(f'[User Question] {args.user_message}')
 
@@ -103,25 +111,49 @@ async def main():
         logger=logger,
         writing_mode=args.writing_mode,
         enable_thinking=args.enable_thinking,
+        openai_api=args.openai_api,
+        mcp_url=args.mcp_url,
+        mcp_label=args.mcp_label,
     )
 
-    async with MultiMcp(mcp_cfg.url_map, mcp_cfg.enabled) as mcp:
-        llm_tools = await build_tools(mcp, mcp_cfg)
-
-        logger.info(f'Available Tools:\n{llm_tools}\n')
-
-        answer = await run_agent(
-            backend=backend,
-            mcp=mcp,
-            llm_tools=llm_tools,
+    if args.openai_api == "responses_url":
+        # OpenAI server talks to the MCP server directly. No local MCP
+        # connection, no client-side tool routing -- the backend makes a
+        # single Responses API call and returns the final answer.
+        answer = backend.run(
             system_message=args.system_message,
             user_message=args.user_message,
-            temperature=llm_cfg.temperature,
             max_new_tokens=llm_cfg.max_new_tokens,
-            max_tool_rounds=llm_cfg.max_tool_rounds,
+            temperature=llm_cfg.temperature,
             seed=args.seed,
             logger=logger,
         )
+    else:
+        enabled = [s.strip() for s in args.enabled.split(",")] if args.enabled else list(ENABLED_SERVERS)
+        mcp_cfg = McpConfig(
+            url_map=MCP_URLS,
+            enabled=enabled,
+            allowlist=TOOL_ALLOWLIST,
+            prefix_tools=True,
+        )
+
+        async with MultiMcp(mcp_cfg.url_map, mcp_cfg.enabled) as mcp:
+            llm_tools = await build_tools(mcp, mcp_cfg)
+
+            logger.info(f'Available Tools:\n{llm_tools}\n')
+
+            answer = await run_agent(
+                backend=backend,
+                mcp=mcp,
+                llm_tools=llm_tools,
+                system_message=args.system_message,
+                user_message=args.user_message,
+                temperature=llm_cfg.temperature,
+                max_new_tokens=llm_cfg.max_new_tokens,
+                max_tool_rounds=llm_cfg.max_tool_rounds,
+                seed=args.seed,
+                logger=logger,
+            )
 
     logger.info(f'Final Answer:\n{answer}')
 

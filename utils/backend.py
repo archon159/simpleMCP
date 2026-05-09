@@ -35,8 +35,25 @@ def create_backend(
     logger: Any = None,
     writing_mode: bool = False,
     enable_thinking: bool = False,
+    openai_api: str = "chat_completions",
+    mcp_url: Optional[str] = None,
+    mcp_label: str = "custom",
+    mcp_allowed_tools: Optional[List[str]] = None,
 ) -> Any:
     if _is_openai_model(model_name):
+        if openai_api == "responses":
+            from utils.openai_responses_backend import OpenAIResponsesBackend
+            return OpenAIResponsesBackend(model_name)
+        if openai_api == "responses_url":
+            if not mcp_url:
+                raise ValueError("--mcp_url is required when --openai_api=responses_url")
+            from utils.openai_responses_url_backend import OpenAIResponsesUrlBackend
+            return OpenAIResponsesUrlBackend(
+                model=model_name,
+                mcp_url=mcp_url,
+                mcp_label=mcp_label,
+                allowed_tools=mcp_allowed_tools,
+            )
         from utils.openai_backend import OpenAIBackend
         return OpenAIBackend(model_name)
 

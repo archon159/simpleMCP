@@ -7,10 +7,20 @@ from openai import OpenAI
 from utils.backend import ToolCall, ChatResponse
 
 
+def _is_reasoning_model(name: str) -> bool:
+    # o1/o3/o4 series and gpt-5 family are reasoning models that reject
+    # temperature, top_p, seed, etc.
+    return name.startswith(("o1-", "o3-", "o4-", "gpt-5"))
+
+
 @dataclass
 class OpenAIBackend:
     model: str
-    _client: OpenAI = field(default_factory=OpenAI, init=False, repr=False)
+    _client: OpenAI = field(
+        default_factory=lambda: OpenAI(max_retries=3, timeout=60.0),
+        init=False,
+        repr=False,
+    )
 
     def complete(
         self,
@@ -25,10 +35,11 @@ class OpenAIBackend:
         kwargs: Dict[str, Any] = dict(
             model=self.model,
             messages=messages,
-            max_tokens=max_new_tokens,
-            temperature=temperature,
-            seed=seed,
+            max_completion_tokens=max_new_tokens,
         )
+        if not _is_reasoning_model(self.model):
+            kwargs["temperature"] = temperature
+            kwargs["seed"] = seed
         if tools:
             kwargs["tools"] = tools
 
