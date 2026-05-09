@@ -25,7 +25,7 @@ async def run_agent(
 
     for round_num in range(1, max_tool_rounds + 1):
         logger.info(f"[ROUND {round_num}] START\n")
-        logger.info(f"[ROUND {round_num}] LLM Input:\n{messages}\n")
+        logger.info(f"[ROUND {round_num}] LLM Input:\n{json.dumps(messages, indent=2, ensure_ascii=False)}\n")
 
         response = backend.complete(
             messages,
@@ -58,15 +58,5 @@ async def run_agent(
 
         messages.append(backend.build_tool_call_message(tc))
         messages.append(backend.build_tool_result_message(tc, result_text))
-
-        final = backend.complete(
-            messages,
-            tools=None,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            seed=seed,
-            logger=logger,
-        )
-        return final.content or ""
 
     raise RuntimeError("Tool calling rounds exceeded.")

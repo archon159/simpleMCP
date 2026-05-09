@@ -1,4 +1,3 @@
-import copy
 import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -6,22 +5,6 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from utils.backend import ToolCall, ChatResponse
-
-
-def _encode_name(name: str) -> str:
-    """Replace '.' with '__' to satisfy OpenAI name pattern ^[a-zA-Z0-9_-]+$."""
-    return name.replace(".", "__")
-
-
-def _decode_name(name: str) -> str:
-    return name.replace("__", ".", 1)
-
-
-def _sanitize_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    sanitized = copy.deepcopy(tools)
-    for t in sanitized:
-        t["function"]["name"] = _encode_name(t["function"]["name"])
-    return sanitized
 
 
 @dataclass
@@ -47,7 +30,7 @@ class OpenAIBackend:
             seed=seed,
         )
         if tools:
-            kwargs["tools"] = _sanitize_tools(tools)
+            kwargs["tools"] = tools
 
         resp = self._client.chat.completions.create(**kwargs)
         msg = resp.choices[0].message
@@ -59,7 +42,7 @@ class OpenAIBackend:
                 content=None,
                 tool_call=ToolCall(
                     id=tc.id,
-                    name=_decode_name(tc.function.name),
+                    name=tc.function.name,
                     args=json.loads(tc.function.arguments),
                 ),
             )
@@ -74,7 +57,7 @@ class OpenAIBackend:
                 "id": tc.id,
                 "type": "function",
                 "function": {
-                    "name": _encode_name(tc.name),
+                    "name": tc.name,
                     "arguments": json.dumps(tc.args, ensure_ascii=False),
                 },
             }],

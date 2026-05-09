@@ -9,6 +9,8 @@ from utils.backend import ToolCall, ChatResponse
 @dataclass
 class HFBackend:
     hf: HFModel
+    writing_mode: bool = False
+    enable_thinking: bool = False
 
     def complete(
         self,
@@ -28,8 +30,11 @@ class HFBackend:
             temperature=temperature,
             seed=seed,
             logger=logger,
+            writing_mode=self.writing_mode,
+            enable_thinking=self.enable_thinking,
         )
-        logger.info(f"Raw LLM Output:\n{raw}\n")
+        if not self.writing_mode:
+            logger.info(f"Raw LLM Output:\n{raw}\n")
 
         response_type, tool_name, tool_args = parse_output(raw)
         if response_type == "final":

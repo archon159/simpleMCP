@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from dotenv import load_dotenv
 load_dotenv("./secrets.env")
@@ -27,7 +28,7 @@ TOOL_ALLOWLIST = {
     },
 }
 
-MODEL_DIR = Path("../hf_models/")
+MODEL_DIR = Path(os.environ.get("MODEL_DIR", "../hf_models/"))
 
 async def build_tools(mcp: MultiMcp, mcp_cfg: McpConfig):
     all_tools = []
@@ -51,7 +52,10 @@ def parse_arguments(return_default: bool = False):
     parser.add_argument('--dtype', type=str, default='auto', help="Model dtype (HuggingFace only)")
     parser.add_argument('--seed', type=int, default=0, help='Random seed')
     parser.add_argument('--temperature', type=float, default=0.0, help='Temperature')
-    parser.add_argument('--model', type=str, default='Llama-3.1-8B-Instruct', help='Model name (HuggingFace local) or API model ID (e.g. gpt-4o, claude-3-5-sonnet-20241022)')
+    parser.add_argument('--model', type=str, default='Qwen/Qwen3.5-35B-A3B', help='Model name (HuggingFace local) or API model ID (e.g. gpt-4o, claude-3-5-sonnet-20241022)')
+    parser.add_argument('--max_tool_rounds', type=int, default=6, help='Maximum number of LLM rounds (each round may invoke one tool or produce the final answer).')
+    parser.add_argument('--writing_mode', action='store_true', help='HuggingFace only: also log the model output with special tokens kept (e.g. <|python_tag|>) for inspection. Agent behavior is unchanged.')
+    parser.add_argument('--enable_thinking', action='store_true', help='HuggingFace only: pass enable_thinking=True to apply_chat_template (e.g. Qwen3 thinking mode). Default False.')
 
     parser.add_argument(
         '--system_message',
@@ -79,11 +83,12 @@ async def main():
     llm_cfg = LLMConfig(
         temperature=args.temperature,
         max_new_tokens=256,
-        max_tool_rounds=6,
+        max_tool_rounds=args.max_tool_rounds,
     )
     mcp_cfg = McpConfig(
         url_map=MCP_URLS,
-        enabled=["custom", "brave_search"],
+        # enabled=["custom", "brave_search"],
+        enabled=['custom'],
         allowlist=TOOL_ALLOWLIST,
         prefix_tools=True,
     )
@@ -96,6 +101,8 @@ async def main():
         device=args.device,
         dtype=args.dtype,
         logger=logger,
+        writing_mode=args.writing_mode,
+        enable_thinking=args.enable_thinking,
     )
 
     async with MultiMcp(mcp_cfg.url_map, mcp_cfg.enabled) as mcp:

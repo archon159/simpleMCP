@@ -33,6 +33,8 @@ def create_backend(
     device: str,
     dtype: str,
     logger: Any = None,
+    writing_mode: bool = False,
+    enable_thinking: bool = False,
 ) -> Any:
     if _is_openai_model(model_name):
         from utils.openai_backend import OpenAIBackend
@@ -48,4 +50,4 @@ def create_backend(
     from utils.hf_model import load_hf_model
     from utils.hf_backend import HFBackend
     hf = load_hf_model(model_dir / model_name, dtype=dtype, device=device)
-    return HFBackend(hf)
+    return HFBackend(hf, writing_mode=writing_mode, enable_thinking=enable_thinking)

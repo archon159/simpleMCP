@@ -40,6 +40,8 @@ def generate_from_messages(
     temperature: float,
     seed: int = 0,
     logger: Any = None,
+    writing_mode: bool = False,
+    enable_thinking: bool = False,
 ) -> str:
     if seed:
         torch.manual_seed(seed)
@@ -49,6 +51,7 @@ def generate_from_messages(
         tools=tools,
         tokenize=False,
         add_generation_prompt=True,
+        enable_thinking=enable_thinking,
     )
     
     logger.info("Actual Prompt")
@@ -70,5 +73,20 @@ def generate_from_messages(
         out = hf.model.generate(**inputs, **gen_kwargs)
 
     gen_ids = out[0][input_len:]
+
+    # Decode the generated ids twice for different purposes:
+    #   - skip_special_tokens=True  : returned for the agent. Control tokens
+    #     such as <|python_tag|> and <|eom_id|> are removed so the JSON inside
+    #     a tool call parses cleanly.
+    #   - skip_special_tokens=False : logged only when writing_mode is on, so
+    #     the raw token-level output (including the special tokens that drive
+    #     tool calling) is visible for inspection. Agent behavior is identical
+    #     whether writing_mode is on or off.
     text = hf.tokenizer.decode(gen_ids, skip_special_tokens=True).strip()
+
+    if writing_mode:
+        raw_with_tokens = hf.tokenizer.decode(gen_ids, skip_special_tokens=False)
+        logger.info("Raw output with special tokens (writing mode):")
+        logger.info(raw_with_tokens)
+
     return text
